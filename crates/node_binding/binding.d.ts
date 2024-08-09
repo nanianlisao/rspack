@@ -109,22 +109,8 @@ export class JsEntries {
   values(): Array<EntryDataDto>
 }
 
-export class JsLoaderContext {
-  get resourceData(): JsResourceData
-  get _moduleIdentifier(): string
-  get _module(): JsModule
-  get hot(): boolean
-  get content(): null | Buffer | string
-  set content(val: null | Buffer | string)
-  get sourceMap(): string | undefined
-  set sourceMap(val: string | undefined)
-  get cacheable(): boolean
-  set cacheable(val: boolean)
-  get loaderItems(): Array<JsLoaderItem>
-  set loaderItems(val: Array<JsLoaderItem>)
-  get loaderIndex(): number
-  set loaderIndex(val: number)
-  get loaderState(): JsLoaderState
+export class JsLoaderContextMethods {
+  cacheable(val: boolean): void
   addDependency(file: string): void
   addContextDependency(file: string): void
   addMissingDependency(file: string): void
@@ -510,6 +496,19 @@ export interface JsLibraryOptions {
   umdNamedDefine?: boolean
   auxiliaryComment?: JsLibraryAuxiliaryComment
   amdContainer?: string
+}
+
+export interface JsLoaderContext {
+  loaderIndex: number
+  resourceData: JsResourceData
+  _moduleIdentifier: string
+  _module: JsModule
+  hot: boolean
+  content: null | Buffer
+  additionalData?: any
+  sourceMap?: Buffer
+  loaderItems: Array<JsLoaderItem>
+  loaderState: JsLoaderState
 }
 
 export interface JsLoaderItem {

@@ -14,6 +14,7 @@ import assert from "node:assert";
 import { promisify } from "node:util";
 import {
 	type JsLoaderContext,
+	JsLoaderContextMethods,
 	type JsLoaderItem,
 	JsLoaderState,
 	JsRspackSeverity
@@ -341,7 +342,8 @@ const LOADER_CONTEXT_WEAK_MAP = new WeakMap<JsLoaderContext, LoaderContext>();
 
 function createLoaderContext(
 	compiler: Compiler,
-	context: JsLoaderContext
+	context: JsLoaderContext,
+	methods: JsLoaderContextMethods
 ): LoaderContext {
 	if (LOADER_CONTEXT_WEAK_MAP.has(context)) {
 		return LOADER_CONTEXT_WEAK_MAP.get(context)!;
@@ -357,33 +359,30 @@ function createLoaderContext(
 	const contextDirectory = resourcePath ? dirname(resourcePath) : null;
 
 	/// Construct `loaderContext`
-	const loaderContext = {
-		get hot() {
-			return context.hot;
-		}
-	} as LoaderContext;
+	const loaderContext = {} as LoaderContext;
 
 	loaderContext.loaders = context.loaderItems.map((item: any) => {
 		return LoaderObject.__from_binding(item, compiler);
 	});
 
+	loaderContext.hot = context.hot;
 	loaderContext.context = contextDirectory;
 	loaderContext.resourcePath = resourcePath!;
 	loaderContext.resourceQuery = resourceQuery!;
 	loaderContext.resourceFragment = resourceFragment!;
 	loaderContext.dependency = loaderContext.addDependency =
-		context.addDependency.bind(context);
+		methods.addDependency.bind(methods);
 	loaderContext.addContextDependency =
-		context.addContextDependency.bind(context);
+		methods.addContextDependency.bind(methods);
 	loaderContext.addMissingDependency =
-		context.addMissingDependency.bind(context);
-	loaderContext.addBuildDependency = context.addBuildDependency.bind(context);
-	loaderContext.getDependencies = context.getDependencies.bind(context);
+		methods.addMissingDependency.bind(methods);
+	loaderContext.addBuildDependency = methods.addBuildDependency.bind(methods);
+	loaderContext.getDependencies = methods.getDependencies.bind(methods);
 	loaderContext.getContextDependencies =
-		context.getContextDependencies.bind(context);
+		methods.getContextDependencies.bind(methods);
 	loaderContext.getMissingDependencies =
-		context.getMissingDependencies.bind(context);
-	loaderContext.clearDependencies = context.clearDependencies.bind(context);
+		methods.getMissingDependencies.bind(methods);
+	loaderContext.clearDependencies = methods.clearDependencies.bind(methods);
 	loaderContext.importModule = function importModule(
 		request,
 		options,
@@ -749,18 +748,9 @@ function createLoaderContext(
 	Object.defineProperty(loaderContext, "loaderIndex", {
 		enumerable: true,
 		get: () => context.loaderIndex,
-		set: loaderIndex => {
-			context.loaderIndex = loaderIndex;
-		}
+		set: loaderIndex => (context.loaderIndex = loaderIndex)
 	});
-	Object.defineProperty(loaderContext, "cacheable", {
-		enumerable: true,
-		get: () => (cacheable: boolean) => {
-			if (cacheable === false) {
-				context.cacheable = cacheable;
-			}
-		}
-	});
+	loaderContext.cacheable = methods.cacheable.bind(methods);
 	Object.defineProperty(loaderContext, "data", {
 		enumerable: true,
 		get: () => loaderContext.loaders[loaderContext.loaderIndex].data,
@@ -774,11 +764,12 @@ function createLoaderContext(
 
 export async function runLoaders(
 	compiler: Compiler,
-	context: JsLoaderContext
-): Promise<void> {
+	context: JsLoaderContext,
+	methods: JsLoaderContextMethods
+): Promise<JsLoaderContext> {
 	const loaderState = context.loaderState;
 
-	const loaderContext = createLoaderContext(compiler, context);
+	const loaderContext = createLoaderContext(compiler, context, methods);
 
 	switch (loaderState) {
 		case JsLoaderState.Pitching: {
@@ -807,10 +798,10 @@ export async function runLoaders(
 				const hasArg = args.some(value => value !== undefined);
 
 				if (hasArg) {
-					const [content, sourceMap] = args;
+					const [content, sourceMap, additionalData] = args;
 					context.content = isNil(content) ? null : toBuffer(content);
-					context.sourceMap = sourceMap ? JSON.stringify(sourceMap) : undefined;
-					// context.additionalData = additionalData;
+					context.sourceMap = serializeObject(sourceMap);
+					context.additionalData = additionalData;
 					break;
 				}
 			}
@@ -820,8 +811,7 @@ export async function runLoaders(
 		case JsLoaderState.Normal: {
 			let content = context.content;
 			let sourceMap = JsSourceMap.__from_binding(context.sourceMap);
-			// let additionalData = context.additionalData;
-			let additionalData = {};
+			let additionalData = context.additionalData;
 
 			while (loaderContext.loaderIndex >= 0) {
 				const currentLoaderObject =
@@ -844,8 +834,8 @@ export async function runLoaders(
 			}
 
 			context.content = isNil(content) ? null : toBuffer(content);
-			context.sourceMap = sourceMap ? JSON.stringify(sourceMap) : undefined;
-			// context.additionalData = additionalData;
+			context.sourceMap = serializeObject(sourceMap);
+			context.additionalData = additionalData;
 
 			break;
 		}
@@ -857,6 +847,8 @@ export async function runLoaders(
 	context.loaderItems = loaderContext.loaders.map(item =>
 		LoaderObject.__to_binding(item)
 	);
+
+	return context;
 }
 
 function utf8BufferToString(buf: Buffer) {

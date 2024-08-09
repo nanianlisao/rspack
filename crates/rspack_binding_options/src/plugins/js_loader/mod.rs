@@ -4,14 +4,15 @@ mod scheduler;
 
 use std::fmt::Debug;
 
-pub use context::JsLoaderContextWrapper;
+pub use context::{JsLoaderContext, JsLoaderContextMethodsWrapper};
 use napi::bindgen_prelude::*;
 use rspack_core::{ApplyContext, CompilerOptions, Plugin, PluginContext};
 use rspack_error::Result;
 use rspack_hook::plugin;
 use rspack_napi::threadsafe_function::ThreadsafeFunction;
 
-pub type JsLoaderRunner = ThreadsafeFunction<JsLoaderContextWrapper, Promise<()>>;
+pub type JsLoaderRunner =
+  ThreadsafeFunction<(JsLoaderContext, JsLoaderContextMethodsWrapper), Promise<JsLoaderContext>>;
 
 #[plugin]
 pub(crate) struct JsLoaderRspackPlugin {

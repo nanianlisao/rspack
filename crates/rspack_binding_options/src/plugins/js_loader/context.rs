@@ -1,11 +1,12 @@
-use std::{cell::RefCell, io::Read};
+use std::cell::RefCell;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use rspack_binding_values::{JsModule, JsResourceData, ToJsModule};
 use rspack_core::{LoaderContext, LoaderContextId, RunnerContext};
+use rspack_error::{error, Result};
 use rspack_loader_runner::{LoaderItem, State as LoaderState};
-use rspack_napi::Ref;
+use rspack_napi::{threadsafe_js_value_ref::ThreadsafeJsValueRef, Ref};
 use rustc_hash::FxHashMap as HashMap;
 
 #[napi(object)]
@@ -52,131 +53,66 @@ impl From<LoaderState> for JsLoaderState {
   }
 }
 
-#[napi]
-pub struct JsLoaderContext(pub(crate) &'static mut LoaderContext<RunnerContext>);
+#[napi(object)]
+pub struct JsLoaderContext {
+  pub loader_index: i32,
+  pub resource_data: JsResourceData,
+  #[napi(js_name = "_moduleIdentifier")]
+  pub module_identifier: String,
+  #[napi(js_name = "_module")]
+  pub module: JsModule,
+  pub hot: bool,
+  pub content: Either<Null, Buffer>,
+  #[napi(ts_type = "any")]
+  pub additional_data: Option<ThreadsafeJsValueRef<Unknown>>,
+  pub source_map: Option<Buffer>,
+  pub loader_items: Vec<JsLoaderItem>,
+  pub loader_state: JsLoaderState,
+}
 
-#[napi]
 impl JsLoaderContext {
-  #[napi(getter)]
-  pub fn resource_data(&self) -> JsResourceData {
-    self.0.resource_data.as_ref().into()
-  }
-
-  #[napi(getter, js_name = "_moduleIdentifier")]
-  pub fn module_identifier(&self) -> &str {
-    self.0.context.module.module_identifier.as_str()
-  }
-
-  #[napi(getter, js_name = "_module")]
-  pub fn module(&self) -> JsModule {
-    self
-      .0
-      .context
-      .module
-      .to_js_module()
-      .expect("CompilerModuleContext::to_js_module should not fail.")
-  }
-
-  #[napi(getter)]
-  pub fn hot(&self) -> bool {
-    self.0.hot
-  }
-
-  #[napi(getter)]
-  pub fn content(&self) -> Either3<Null, Buffer, &String> {
-    match &self.0.content {
-      Some(c) => match c {
-        rspack_core::Content::String(s) => Either3::C(s),
-        rspack_core::Content::Buffer(b) => Either3::B(b.to_owned().into()),
+  pub fn new(ctx: &LoaderContext<RunnerContext>) -> Result<Self> {
+    Ok(Self {
+      loader_index: ctx.loader_index,
+      resource_data: ctx.resource_data.as_ref().into(),
+      module_identifier: ctx.context.module.module_identifier.to_string(),
+      module: ctx
+        .context
+        .module
+        .to_js_module()
+        .expect("CompilerModuleContext::to_js_module should not fail."),
+      hot: ctx.hot,
+      content: match &ctx.content {
+        Some(c) => Either::B(c.to_owned().into_bytes().into()),
+        None => Either::A(Null),
       },
-      None => Either3::A(Null),
+      additional_data: ctx
+        .additional_data
+        .get::<ThreadsafeJsValueRef<Unknown>>()
+        .cloned(),
+      source_map: ctx
+        .source_map
+        .clone()
+        .map(|v| v.to_json())
+        .transpose()
+        .map_err(|e| error!(e.to_string()))?
+        .map(|v| v.into_bytes().into()),
+      loader_items: ctx.loader_items.iter().map(Into::into).collect(),
+      loader_state: ctx.state().into(),
+    })
+  }
+}
+
+#[napi]
+pub struct JsLoaderContextMethods(pub(crate) &'static mut LoaderContext<RunnerContext>);
+
+#[napi]
+impl JsLoaderContextMethods {
+  #[napi]
+  pub fn cacheable(&mut self, val: bool) {
+    if !val {
+      self.0.cacheable = val;
     }
-  }
-
-  #[napi(setter)]
-  pub fn set_content(&mut self, val: Either3<Null, Buffer, String>) {
-    self.0.content = match val {
-      Either3::A(_) => None,
-      Either3::B(b) => Some(rspack_core::Content::from(Into::<Vec<u8>>::into(b))),
-      Either3::C(s) => Some(rspack_core::Content::from(s)),
-    }
-  }
-
-  #[napi(getter)]
-  pub fn source_map(&self) -> Result<Either<String, ()>> {
-    match &self.0.source_map {
-      Some(v) => {
-        let s = v
-          .clone()
-          .to_json()
-          .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-        Ok(Either::A(s))
-      }
-      None => Ok(Either::B(())),
-    }
-  }
-
-  #[napi(setter)]
-  pub fn set_source_map(&mut self, val: napi::Either<String, ()>) -> Result<()> {
-    self.0.source_map = match val {
-      napi::Either::A(val) => {
-        let source_map = rspack_core::rspack_sources::SourceMap::from_slice(val.as_bytes())
-          .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-        Some(source_map)
-      }
-      napi::Either::B(_) => None,
-    };
-    Ok(())
-  }
-
-  #[napi(getter)]
-  pub fn cacheable(&self) -> bool {
-    self.0.cacheable
-  }
-
-  #[napi(setter)]
-  pub fn set_cacheable(&mut self, val: bool) {
-    self.0.cacheable = val;
-  }
-
-  #[napi(getter)]
-  pub fn loader_items(&self) -> Vec<JsLoaderItem> {
-    self.0.loader_items.iter().map(Into::into).collect()
-  }
-
-  #[napi(setter)]
-  pub fn set_loader_items(&mut self, mut val: Vec<JsLoaderItem>) {
-    self.0.loader_items = self
-      .0
-      .loader_items
-      .drain(..)
-      .zip(val.drain(..))
-      .map(|(mut to, from)| {
-        if from.normal_executed {
-          to.set_normal_executed()
-        }
-        if from.pitch_executed {
-          to.set_pitch_executed()
-        }
-        to.set_data(from.data);
-        to
-      })
-      .collect();
-  }
-
-  #[napi(getter)]
-  pub fn loader_index(&self) -> i32 {
-    self.0.loader_index
-  }
-
-  #[napi(setter)]
-  pub fn set_loader_index(&mut self, val: i32) {
-    self.0.loader_index = val;
-  }
-
-  #[napi(getter)]
-  pub fn loader_state(&self) -> JsLoaderState {
-    self.0.state().into()
   }
 
   #[napi]
@@ -242,9 +178,9 @@ thread_local! {
   pub static LOADER_CONTEXT_INSTANCE_REFS: RefCell<HashMap<LoaderContextId, Ref>> = Default::default();
 }
 
-pub struct JsLoaderContextWrapper(&'static mut LoaderContext<RunnerContext>);
+pub struct JsLoaderContextMethodsWrapper(&'static mut LoaderContext<RunnerContext>);
 
-impl JsLoaderContextWrapper {
+impl JsLoaderContextMethodsWrapper {
   pub fn new(value: &mut LoaderContext<RunnerContext>) -> Self {
     let context = unsafe {
       std::mem::transmute::<
@@ -256,8 +192,8 @@ impl JsLoaderContextWrapper {
   }
 }
 
-impl ToNapiValue for JsLoaderContextWrapper {
-  unsafe fn to_napi_value(env: sys::napi_env, val: Self) -> Result<sys::napi_value> {
+impl ToNapiValue for JsLoaderContextMethodsWrapper {
+  unsafe fn to_napi_value(env: sys::napi_env, val: Self) -> napi::Result<sys::napi_value> {
     LOADER_CONTEXT_INSTANCE_REFS.with(|refs| {
       let mut refs = refs.borrow_mut();
       match refs.entry(val.0.id) {
@@ -267,7 +203,7 @@ impl ToNapiValue for JsLoaderContextWrapper {
         }
         std::collections::hash_map::Entry::Vacant(entry) => {
           let env_wrapper = Env::from_raw(env);
-          let instance = JsLoaderContext(val.0).into_instance(env_wrapper)?;
+          let instance = JsLoaderContextMethods(val.0).into_instance(env_wrapper)?;
           let napi_value = ToNapiValue::to_napi_value(env, instance)?;
           let r = Ref::new(env, napi_value, 1)?;
           let r = entry.insert(r);
