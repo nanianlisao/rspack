@@ -141,6 +141,20 @@ export class JsLoaderContextMethods {
   clearDependencies(): void
 }
 
+export class JsModule {
+  get context(): string | undefined
+  get originalSource(): JsCompatSource | undefined
+  get resource(): string | undefined
+  get moduleIdentifier(): string
+  get nameForCondition(): string | undefined
+  get request(): string | undefined
+  get userRequest(): string | undefined
+  get rawRequest(): string | undefined
+  get factoryMeta(): JsFactoryMeta | null
+  get type(): string
+  get layer(): string | undefined
+}
+
 export class JsResolver {
   resolveSync(path: string, request: string): string | false
   withOptions(raw?: RawResolveOptionsWithDependencyType | undefined | null): this
@@ -565,20 +579,6 @@ export interface JsLoaderItem {
 export enum JsLoaderState {
   Pitching = 'Pitching',
   Normal = 'Normal'
-}
-
-export interface JsModule {
-  context?: string
-  originalSource?: JsCompatSource
-  resource?: string
-  moduleIdentifier: string
-  nameForCondition?: string
-  request?: string
-  userRequest?: string
-  rawRequest?: string
-  factoryMeta?: JsFactoryMeta
-  type: string
-  layer?: string
 }
 
 export interface JsModuleDescriptor {

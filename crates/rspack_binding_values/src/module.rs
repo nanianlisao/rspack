@@ -13,7 +13,7 @@ use sys::napi_env;
 use super::{JsCompatSource, ToJsCompatSource};
 use crate::{DependencyDTO, JsChunk, JsCodegenerationResults};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[napi(object)]
 pub struct JsFactoryMeta {
   pub side_effect_free: Option<bool>,
@@ -312,19 +312,129 @@ impl ToNapiValue for ModuleDTOWrapper {
 }
 
 #[derive(Default)]
-#[napi(object)]
+#[napi]
 pub struct JsModule {
-  pub context: Option<String>,
-  pub original_source: Option<JsCompatSource>,
-  pub resource: Option<String>,
-  pub module_identifier: String,
-  pub name_for_condition: Option<String>,
-  pub request: Option<String>,
-  pub user_request: Option<String>,
-  pub raw_request: Option<String>,
-  pub factory_meta: Option<JsFactoryMeta>,
-  pub r#type: String,
-  pub layer: Option<String>,
+  context: Option<String>,
+  original_source: Option<JsCompatSource>,
+  resource: Option<String>,
+  module_identifier: String,
+  name_for_condition: Option<String>,
+  request: Option<String>,
+  user_request: Option<String>,
+  raw_request: Option<String>,
+  factory_meta: Option<JsFactoryMeta>,
+  r#type: String,
+  layer: Option<String>,
+}
+
+#[napi]
+impl JsModule {
+  #[napi(getter)]
+  pub fn context(&self) -> Either<&String, ()> {
+    match &self.context {
+      Some(context) => Either::A(context),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn original_source(&self) -> Either<JsCompatSource, ()> {
+    match &self.original_source {
+      Some(original_source) => Either::A(original_source.clone()),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn resource(&self) -> Either<&String, ()> {
+    match &self.resource {
+      Some(resource) => Either::A(resource),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn module_identifier(&self) -> &String {
+    &self.module_identifier
+  }
+
+  #[napi(getter)]
+  pub fn name_for_condition(&self) -> Either<&String, ()> {
+    match &self.name_for_condition {
+      Some(name_for_condition) => Either::A(name_for_condition),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn request(&self) -> Either<&String, ()> {
+    match &self.request {
+      Some(request) => Either::A(request),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn user_request(&self) -> Either<&String, ()> {
+    match &self.user_request {
+      Some(user_request) => Either::A(user_request),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn raw_request(&self) -> Either<&String, ()> {
+    match &self.raw_request {
+      Some(raw_request) => Either::A(raw_request),
+      None => Either::B(()),
+    }
+  }
+
+  #[napi(getter)]
+  pub fn factory_meta(&self) -> Option<JsFactoryMeta> {
+    self.factory_meta.clone()
+  }
+
+  #[napi(getter)]
+  pub fn get_type(&self) -> &String {
+    &self.r#type
+  }
+
+  #[napi(getter)]
+  pub fn layer(&self) -> Either<&String, ()> {
+    match &self.layer {
+      Some(layer) => Either::A(layer),
+      None => Either::B(()),
+    }
+  }
+}
+
+pub struct JsModuleWrapper(Either<JsModule, Ref>);
+
+impl JsModuleWrapper {
+  pub fn new(module: JsModule) -> Self {
+    Self(Either::A(module))
+  }
+}
+
+impl ToNapiValue for JsModuleWrapper {
+  unsafe fn to_napi_value(env: sys::napi_env, val: Self) -> Result<sys::napi_value> {
+    let env_wrapper = Env::from(env);
+    match val.0 {
+      Either::A(tpl) => {
+        let instance = tpl.into_instance(env_wrapper)?;
+        ToNapiValue::to_napi_value(env, instance)
+      }
+      Either::B(r) => ToNapiValue::to_napi_value(env, r),
+    }
+  }
+}
+
+impl FromNapiValue for JsModuleWrapper {
+  unsafe fn from_napi_value(env: sys::napi_env, napi_val: sys::napi_value) -> Result<Self> {
+    let r = Ref::new(env, napi_val, 1)?;
+    Ok(Self(Either::B(r)))
+  }
 }
 
 pub trait ToJsModule {

@@ -55,15 +55,6 @@ export class Module {
 	#inner: JsModule | ModuleDTO;
 	#originalSource?: Source;
 
-	context?: Readonly<string>;
-	resource?: Readonly<string>;
-	request?: Readonly<string>;
-	userRequest?: Readonly<string>;
-	rawRequest?: Readonly<string>;
-	type: string;
-	layer: null | string;
-
-	factoryMeta?: Readonly<JsFactoryMeta>;
 	/**
 	 * Records the dynamically added fields for Module on the JavaScript side.
 	 * These fields are generally used within a plugin, so they do not need to be passed back to the Rust side.
@@ -87,20 +78,44 @@ export class Module {
 
 	constructor(module: JsModule | ModuleDTO, compilation?: Compilation) {
 		this.#inner = module;
-		this.type = module.type;
-		this.layer = module.layer ?? null;
-		this.context = module.context;
-		this.resource = module.resource;
-		this.request = module.request;
-		this.userRequest = module.userRequest;
-		this.rawRequest = module.rawRequest;
 
-		this.factoryMeta = module.factoryMeta;
 		const customModule = compilation?.__internal__getCustomModule(
 			module.moduleIdentifier
 		);
 		this.buildInfo = customModule?.buildInfo || {};
 		this.buildMeta = customModule?.buildMeta || {};
+	}
+
+	get type(): string {
+		return this.#inner.type;
+	}
+
+	get layer(): string | null {
+		return this.#inner.layer ?? null;
+	}
+
+	get context(): string | undefined {
+		return this.#inner.context;
+	}
+
+	get resource(): string | undefined {
+		return this.#inner.resource;
+	}
+
+	get request(): string | undefined {
+		return this.#inner.request;
+	}
+
+	get userRequest(): string | undefined {
+		return this.#inner.userRequest;
+	}
+
+	get rawRequest(): string | undefined {
+		return this.#inner.rawRequest;
+	}
+
+	get factoryMeta(): JsFactoryMeta | undefined | null {
+		return this.#inner.factoryMeta;
 	}
 
 	originalSource(): Source | null {

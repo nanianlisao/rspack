@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use rspack_binding_values::{JsModule, JsResourceData, ToJsModule};
+use rspack_binding_values::{JsModuleWrapper, JsResourceData, ToJsModule};
 use rspack_core::{LoaderContext, LoaderContextId, RunnerContext};
 use rspack_error::{error, Result};
 use rspack_loader_runner::{LoaderItem, State as LoaderState};
@@ -57,8 +57,8 @@ impl From<LoaderState> for JsLoaderState {
 pub struct JsLoaderContext {
   #[napi(ts_type = "Readonly<JsResourceData>")]
   pub resource_data: JsResourceData,
-  #[napi(js_name = "_module")]
-  pub module: JsModule,
+  #[napi(js_name = "_module", ts_type = "JsModule")]
+  pub module: JsModuleWrapper,
   #[napi(ts_type = "Readonly<boolean>")]
   pub hot: bool,
 
@@ -78,11 +78,13 @@ impl JsLoaderContext {
     Ok(Self {
       loader_index: ctx.loader_index,
       resource_data: ctx.resource_data.as_ref().into(),
-      module: ctx
-        .context
-        .module
-        .to_js_module()
-        .expect("CompilerModuleContext::to_js_module should not fail."),
+      module: JsModuleWrapper::new(
+        ctx
+          .context
+          .module
+          .to_js_module()
+          .expect("CompilerModuleContext::to_js_module should not fail."),
+      ),
       hot: ctx.hot,
       content: match &ctx.content {
         Some(c) => Either::B(c.to_owned().into_bytes().into()),
