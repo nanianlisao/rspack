@@ -55,18 +55,21 @@ impl From<LoaderState> for JsLoaderState {
 
 #[napi(object)]
 pub struct JsLoaderContext {
-  pub loader_index: i32,
+  #[napi(ts_type = "Readonly<JsResourceData>")]
   pub resource_data: JsResourceData,
-  #[napi(js_name = "_moduleIdentifier")]
-  pub module_identifier: String,
   #[napi(js_name = "_module")]
   pub module: JsModule,
+  #[napi(ts_type = "Readonly<boolean>")]
   pub hot: bool,
+
+  /// Content maybe empty in pitching stage
   pub content: Either<Null, Buffer>,
   #[napi(ts_type = "any")]
   pub additional_data: Option<ThreadsafeJsValueRef<Unknown>>,
   pub source_map: Option<Buffer>,
   pub loader_items: Vec<JsLoaderItem>,
+  pub loader_index: i32,
+  #[napi(ts_type = "Readonly<JsLoaderState>")]
   pub loader_state: JsLoaderState,
 }
 
@@ -75,7 +78,6 @@ impl JsLoaderContext {
     Ok(Self {
       loader_index: ctx.loader_index,
       resource_data: ctx.resource_data.as_ref().into(),
-      module_identifier: ctx.context.module.module_identifier.to_string(),
       module: ctx
         .context
         .module
@@ -109,9 +111,11 @@ pub struct JsLoaderContextMethods(pub(crate) &'static mut LoaderContext<RunnerCo
 #[napi]
 impl JsLoaderContextMethods {
   #[napi]
-  pub fn cacheable(&mut self, val: bool) {
-    if !val {
-      self.0.cacheable = val;
+  pub fn cacheable(&mut self, val: Option<bool>) {
+    if let Some(val) = val {
+      if !val {
+        self.0.cacheable = val;
+      }
     }
   }
 

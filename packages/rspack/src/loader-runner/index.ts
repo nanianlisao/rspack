@@ -14,7 +14,7 @@ import assert from "node:assert";
 import { promisify } from "node:util";
 import {
 	type JsLoaderContext,
-	JsLoaderContextMethods,
+	type JsLoaderContextMethods,
 	type JsLoaderItem,
 	JsLoaderState,
 	JsRspackSeverity
@@ -219,7 +219,7 @@ export class LoaderObject {
 }
 
 class JsSourceMap {
-	static __from_binding(map?: Buffer | string) {
+	static __from_binding(map?: Buffer) {
 		return isNil(map) ? undefined : toObject(map);
 	}
 
@@ -361,7 +361,7 @@ function createLoaderContext(
 	/// Construct `loaderContext`
 	const loaderContext = {} as LoaderContext;
 
-	loaderContext.loaders = context.loaderItems.map((item: any) => {
+	loaderContext.loaders = context.loaderItems.map(item => {
 		return LoaderObject.__from_binding(item, compiler);
 	});
 
@@ -668,7 +668,7 @@ function createLoaderContext(
 			source,
 			// @ts-expect-error
 			assetInfo,
-			context._moduleIdentifier
+			context._module.moduleIdentifier
 		);
 	};
 	loaderContext.fs = compiler.inputFileSystem;
@@ -834,7 +834,7 @@ export async function runLoaders(
 			}
 
 			context.content = isNil(content) ? null : toBuffer(content);
-			context.sourceMap = serializeObject(sourceMap);
+			context.sourceMap = JsSourceMap.__to_binding(sourceMap);
 			context.additionalData = additionalData;
 
 			break;

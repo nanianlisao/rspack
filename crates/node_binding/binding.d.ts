@@ -110,7 +110,7 @@ export class JsEntries {
 }
 
 export class JsLoaderContextMethods {
-  cacheable(val: boolean): void
+  cacheable(val?: boolean | undefined | null): void
   addDependency(file: string): void
   addContextDependency(file: string): void
   addMissingDependency(file: string): void
@@ -499,16 +499,16 @@ export interface JsLibraryOptions {
 }
 
 export interface JsLoaderContext {
-  loaderIndex: number
-  resourceData: JsResourceData
-  _moduleIdentifier: string
+  resourceData: Readonly<JsResourceData>
   _module: JsModule
-  hot: boolean
+  hot: Readonly<boolean>
+  /** Content maybe empty in pitching stage */
   content: null | Buffer
   additionalData?: any
   sourceMap?: Buffer
   loaderItems: Array<JsLoaderItem>
-  loaderState: JsLoaderState
+  loaderIndex: number
+  loaderState: Readonly<JsLoaderState>
 }
 
 export interface JsLoaderItem {
