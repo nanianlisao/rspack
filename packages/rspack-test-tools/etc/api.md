@@ -23,7 +23,6 @@ import type { Stats as Stats_2 } from 'webpack';
 import type { StatsCompilation } from '@rspack/core';
 import type { StatsCompilation as StatsCompilation_2 } from 'webpack';
 import type { StatsError } from '@rspack/core';
-import type { StatsWarnings } from '@rspack/core';
 import { TRunnerRequirer as TRunnerRequirer_2 } from '..';
 import type { WebpackOptionsNormalized } from 'webpack';
 
@@ -1117,7 +1116,7 @@ export function replaceModuleArgument(raw: string): string;
 export function replacePaths(input: string): any;
 
 // @public (undocumented)
-export function replaceRuntimeModuleName(raw: string): string;
+export function replaceRuntimeModuleName(name: string): string;
 
 // @public (undocumented)
 export class RspackDiffConfigPlugin implements RspackPluginInstance {
@@ -1426,7 +1425,7 @@ export type TStatsAPICaseConfig = Omit<IStatsAPIProcessorOptions<ECompilerType.R
 // @public (undocumented)
 type TStatsDiagnostics = {
     errors: StatsError[];
-    warnings: StatsWarnings[];
+    warnings: StatsError[];
 };
 
 // @public (undocumented)

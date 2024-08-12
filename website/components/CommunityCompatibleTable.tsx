@@ -48,6 +48,23 @@ export interface PluginSupportStatus {
   description?: string;
 }
 
+const getNotesText = (
+  lang: string,
+  description: PluginSupportStatus['description'],
+  status: PluginSupportStatus['status'],
+) => {
+  if (description) {
+    return (
+      <div>
+        <Markdown>{description}</Markdown>
+      </div>
+    );
+  }
+  if (status === CompatibleStatus.NotCompatible) {
+    return lang === 'zh' ? '待支持' : 'To be implemented';
+  }
+};
+
 export const CommunityPluginCompatibleTable: React.FC = () => {
   const lang = useLang() as 'zh' | 'en';
 
@@ -171,6 +188,51 @@ export const CommunityPluginCompatibleTable: React.FC = () => {
       status: CompatibleStatus.Compatible,
     },
     {
+      name: '@nx/webpack',
+      url: 'https://www.npmjs.com/package/@nx/webpack',
+      status: CompatibleStatus.Alternative,
+      description: i18n[lang]['@nx/webpack-desc'],
+    },
+    {
+      name: 'webpack-filter-warnings-plugin',
+      url: 'https://github.com/mattlewis92/webpack-filter-warnings-plugin',
+      status: CompatibleStatus.NotCompatible,
+      description: i18n[lang]['webpack-filter-warnings-plugin-desc'],
+    },
+    {
+      name: 'speed-measure-webpack-plugin',
+      url: 'https://www.npmjs.com/package/speed-measure-webpack-plugin',
+      status: CompatibleStatus.NotCompatible,
+      description: i18n[lang]['speed-measure-webpack-plugin-desc'],
+    },
+    {
+      name: 'circular-dependency-plugin',
+      url: 'https://github.com/aackerman/circular-dependency-plugin',
+      status: CompatibleStatus.NotCompatible,
+      description: i18n[lang]['circular-dependency-plugin-desc'],
+    },
+    {
+      name: 'critters-webpack-plugin',
+      url: 'https://github.com/GoogleChromeLabs/critters',
+      status: CompatibleStatus.NotCompatible,
+    },
+    {
+      name: 'html-webpack-tags-plugin',
+      url: 'https://github.com/jharris4/html-webpack-tags-plugin',
+      status: CompatibleStatus.PartiallyCompatible,
+      description: i18n[lang]['html-webpack-tags-plugin-desc'],
+    },
+    {
+      name: '@loadable/webpack-plugin',
+      url: 'https://www.npmjs.com/package/@loadable/webpack-plugin',
+      status: CompatibleStatus.Compatible,
+    },
+    {
+      name: 'error-overlay-webpack-plugin',
+      url: 'https://github.com/gregberge/error-overlay-webpack-plugin',
+      status: CompatibleStatus.Compatible,
+    },
+    {
       name: 'webpackbar',
       url: 'https://www.npmjs.com/package/webpackbar',
       status: CompatibleStatus.NotCompatible,
@@ -267,19 +329,6 @@ export const CommunityPluginCompatibleTable: React.FC = () => {
           const { symbol, en, zh } = SUPPORT_STATUS_LOCALIZED[status];
           const statusText = `${symbol} ${lang === 'zh' ? zh : en}`;
 
-          const notesText = (() => {
-            if (description) {
-              return (
-                <div>
-                  <Markdown>{description}</Markdown>
-                </div>
-              );
-            }
-            if (status === CompatibleStatus.NotCompatible) {
-              return lang === 'zh' ? '待支持' : 'To be implemented';
-            }
-          })();
-
           return {
             name: (
               <a href={url} target="_blank" rel="noreferrer">
@@ -287,7 +336,7 @@ export const CommunityPluginCompatibleTable: React.FC = () => {
               </a>
             ),
             status: statusText,
-            notes: notesText,
+            notes: getNotesText(lang, description, status),
           };
         })}
     />

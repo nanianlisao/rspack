@@ -51,7 +51,7 @@ define_hook!(CompilationSucceedModule: AsyncSeries(module: &mut BoxModule));
 define_hook!(CompilationExecuteModule:
   SyncSeries(module: &ModuleIdentifier, runtime_modules: &IdentifierSet, codegen_results: &CodeGenerationResults, execute_module_id: &ExecuteModuleId));
 define_hook!(CompilationFinishModules: AsyncSeries(compilation: &mut Compilation));
-define_hook!(CompilationSeal: SyncSeries(compilation: &mut Compilation));
+define_hook!(CompilationSeal: AsyncSeries(compilation: &mut Compilation));
 define_hook!(CompilationOptimizeDependencies: SyncSeriesBail(compilation: &mut Compilation) -> bool);
 define_hook!(CompilationOptimizeModules: AsyncSeriesBail(compilation: &mut Compilation) -> bool);
 define_hook!(CompilationAfterOptimizeModules: AsyncSeries(compilation: &mut Compilation));
@@ -329,72 +329,100 @@ impl Compilation {
     }
   }
 
-  pub fn file_dependencies(&self) -> impl Iterator<Item = &PathBuf> {
-    self
+  pub fn file_dependencies(
+    &self,
+  ) -> (
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+  ) {
+    let all_files = self
       .make_artifact
       .file_dependencies
       .files()
-      .chain(
-        self
-          .module_executor
-          .as_ref()
-          .expect("should have module_executor")
-          .make_artifact
-          .file_dependencies
-          .files(),
-      )
-      .chain(&self.file_dependencies)
+      .chain(&self.file_dependencies);
+    let added_files = self
+      .make_artifact
+      .file_dependencies
+      .added_files()
+      .iter()
+      .chain(&self.file_dependencies);
+    let removed_files = self.make_artifact.file_dependencies.removed_files().iter();
+    (all_files, added_files, removed_files)
   }
 
-  pub fn context_dependencies(&self) -> impl Iterator<Item = &PathBuf> {
-    self
+  pub fn context_dependencies(
+    &self,
+  ) -> (
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+  ) {
+    let all_files = self
       .make_artifact
       .context_dependencies
       .files()
-      .chain(
-        self
-          .module_executor
-          .as_ref()
-          .expect("should have module_executor")
-          .make_artifact
-          .context_dependencies
-          .files(),
-      )
-      .chain(&self.context_dependencies)
+      .chain(&self.context_dependencies);
+    let added_files = self
+      .make_artifact
+      .context_dependencies
+      .added_files()
+      .iter()
+      .chain(&self.file_dependencies);
+    let removed_files = self
+      .make_artifact
+      .context_dependencies
+      .removed_files()
+      .iter();
+    (all_files, added_files, removed_files)
   }
 
-  pub fn missing_dependencies(&self) -> impl Iterator<Item = &PathBuf> {
-    self
+  pub fn missing_dependencies(
+    &self,
+  ) -> (
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+  ) {
+    let all_files = self
       .make_artifact
       .missing_dependencies
       .files()
-      .chain(
-        self
-          .module_executor
-          .as_ref()
-          .expect("should have module_executor")
-          .make_artifact
-          .missing_dependencies
-          .files(),
-      )
-      .chain(&self.missing_dependencies)
+      .chain(&self.missing_dependencies);
+    let added_files = self
+      .make_artifact
+      .missing_dependencies
+      .added_files()
+      .iter()
+      .chain(&self.file_dependencies);
+    let removed_files = self
+      .make_artifact
+      .missing_dependencies
+      .removed_files()
+      .iter();
+    (all_files, added_files, removed_files)
   }
 
-  pub fn build_dependencies(&self) -> impl Iterator<Item = &PathBuf> {
-    self
+  pub fn build_dependencies(
+    &self,
+  ) -> (
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+    impl Iterator<Item = &PathBuf>,
+  ) {
+    let all_files = self
       .make_artifact
       .build_dependencies
       .files()
-      .chain(
-        self
-          .module_executor
-          .as_ref()
-          .expect("should have module_executor")
-          .make_artifact
-          .build_dependencies
-          .files(),
-      )
-      .chain(&self.build_dependencies)
+      .chain(&self.build_dependencies);
+    let added_files = self
+      .make_artifact
+      .build_dependencies
+      .added_files()
+      .iter()
+      .chain(&self.file_dependencies);
+    let removed_files = self.make_artifact.build_dependencies.removed_files().iter();
+    (all_files, added_files, removed_files)
   }
 
   // TODO move out from compilation
@@ -683,6 +711,8 @@ impl Compilation {
 
   #[instrument(name = "compilation:make", skip_all)]
   pub async fn make(&mut self) -> Result<()> {
+    self.make_artifact.reset_dependencies_incremental_info();
+    //        self.module_executor.
     // run module_executor
     if let Some(module_executor) = &mut self.module_executor {
       let mut module_executor = std::mem::take(module_executor);
@@ -1049,7 +1079,7 @@ impl Compilation {
     let logger = self.get_logger("rspack.Compilation");
 
     // https://github.com/webpack/webpack/blob/main/lib/Compilation.js#L2809
-    plugin_driver.compilation_hooks.seal.call(self)?;
+    plugin_driver.compilation_hooks.seal.call(self).await?;
 
     let start = logger.time("optimize dependencies");
     // https://github.com/webpack/webpack/blob/d15c73469fd71cf98734685225250148b68ddc79/lib/Compilation.js#L2812-L2814
@@ -1785,6 +1815,8 @@ pub struct AssetInfo {
   /// in the rust struct and have the Js side to reshape and align with webpack.
   /// Related: packages/rspack/src/Compilation.ts
   pub extras: serde_json::Map<String, serde_json::Value>,
+  /// whether this asset is over the size limit
+  pub is_over_size_limit: Option<bool>,
 }
 
 impl AssetInfo {
@@ -1846,20 +1878,24 @@ impl AssetInfo {
     self.css_unused_idents = Some(v);
   }
 
+  pub fn set_is_over_size_limit(&mut self, v: bool) {
+    self.is_over_size_limit = Some(v);
+  }
+
   // https://github.com/webpack/webpack/blob/7b80b2b18db66abca6feb7b02a9089aca4bc8186/lib/asset/AssetGenerator.js#L43-L70
-  pub fn merge_another(&mut self, another: &AssetInfo) {
+  pub fn merge_another(&mut self, another: AssetInfo) {
     // "another" first fields
     self.minimized = another.minimized;
-    if let Some(source_filename) = &another.source_filename {
-      self.source_filename = Some(source_filename.clone());
+    if let Some(source_filename) = another.source_filename {
+      self.source_filename = Some(source_filename);
     }
-    self.version = another.version.clone();
+    self.version = another.version;
+    self.related.merge_another(another.related);
 
     // merge vec fields
-    self.chunk_hash.extend(another.chunk_hash.iter().cloned());
-    self
-      .content_hash
-      .extend(another.content_hash.iter().cloned());
+    self.chunk_hash.extend(another.chunk_hash);
+    self.content_hash.extend(another.content_hash);
+    self.extras.extend(another.extras);
     // self.full_hash.extend(another.full_hash.iter().cloned());
     // self.module_hash.extend(another.module_hash.iter().cloned());
 
@@ -1868,12 +1904,21 @@ impl AssetInfo {
     self.immutable = self.immutable || another.immutable;
     self.development = self.development || another.development;
     self.hot_module_replacement = self.hot_module_replacement || another.hot_module_replacement;
+    self.is_over_size_limit = self.is_over_size_limit.or(another.is_over_size_limit);
   }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct AssetInfoRelated {
   pub source_map: Option<String>,
+}
+
+impl AssetInfoRelated {
+  pub fn merge_another(&mut self, another: AssetInfoRelated) {
+    if let Some(source_map) = another.source_map {
+      self.source_map = Some(source_map);
+    }
+  }
 }
 
 /// level order, the impl is different from webpack, since we can't iterate a set and mutate it at

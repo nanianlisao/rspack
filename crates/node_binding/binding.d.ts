@@ -19,15 +19,38 @@ export class ExternalObject<T> {
     [K: symbol]: T
   }
 }
+export class DependenciesBlockDto {
+  get dependencies(): Array<DependencyDto>
+  get blocks(): Array<DependenciesBlockDto>
+}
+export type DependenciesBlockDTO = DependenciesBlockDto
+
+export class DependenciesDto {
+  get fileDependencies(): Array<string>
+  get addedFileDependencies(): Array<string>
+  get removedFileDependencies(): Array<string>
+  get contextDependencies(): Array<string>
+  get addedContextDependencies(): Array<string>
+  get removedContextDependencies(): Array<string>
+  get missingDependencies(): Array<string>
+  get addedMissingDependencies(): Array<string>
+  get removedMissingDependencies(): Array<string>
+  get buildDependencies(): Array<string>
+  get addedBuildDependencies(): Array<string>
+  get removedBuildDependencies(): Array<string>
+}
+export type DependenciesDTO = DependenciesDto
+
 export class DependencyDto {
   get type(): string
   get category(): string
+  get request(): string | undefined
 }
 export type DependencyDTO = DependencyDto
 
 export class EntryDataDto {
-  get dependencies(): Array<DependencyDto>
-  get includeDependencies(): Array<DependencyDto>
+  get dependencies(): Array<DependencyDTO>
+  get includeDependencies(): Array<DependencyDTO>
   get options(): EntryOptionsDto
 }
 export type EntryDataDTO = EntryDataDto
@@ -57,7 +80,7 @@ export class JsCompilation {
   getAssets(): Readonly<JsAsset>[]
   getAsset(name: string): JsAsset | null
   getAssetSource(name: string): JsCompatSource | null
-  getModules(): Array<JsModule>
+  get modules(): Array<ModuleDTO>
   getOptimizationBailout(): Array<JsStatsOptimizationBailout>
   getChunks(): Array<JsChunk>
   getNamedChunkKeys(): Array<string>
@@ -75,10 +98,7 @@ export class JsCompilation {
   get entrypoints(): Record<string, JsChunkGroup>
   get chunkGroups(): Array<JsChunkGroup>
   get hash(): string | null
-  getFileDependencies(): Array<string>
-  getContextDependencies(): Array<string>
-  getMissingDependencies(): Array<string>
-  getBuildDependencies(): Array<string>
+  dependencies(): DependenciesDto
   pushDiagnostic(diagnostic: JsDiagnostic): void
   spliceDiagnostic(start: number, end: number, replaceWith: Array<JsDiagnostic>): void
   pushNativeDiagnostics(diagnostics: ExternalObject<'Diagnostic[]'>): void
@@ -137,6 +157,23 @@ export class JsStats {
   hasErrors(): boolean
   getLogging(acceptedTypes: number): Array<JsStatsLogging>
 }
+
+export class ModuleDto {
+  get context(): string | undefined
+  get originalSource(): JsCompatSource | undefined
+  get resource(): string | undefined
+  get moduleIdentifier(): string
+  get nameForCondition(): string | undefined
+  get request(): string | undefined
+  get userRequest(): string | undefined
+  get rawRequest(): string | undefined
+  get factoryMeta(): JsFactoryMeta | undefined
+  get type(): string
+  get layer(): string | undefined
+  get blocks(): Array<DependenciesBlockDto>
+  size(ty?: string | undefined | null): number
+}
+export type ModuleDTO = ModuleDto
 
 export class Rspack {
   constructor(options: RawOptions, builtinPlugins: Array<BuiltinPlugin>, registerJsTaps: RegisterJsTaps, outputFilesystem: ThreadsafeNodeFS, resolverFactoryReference: JsResolverFactory)
@@ -321,6 +358,8 @@ export interface JsAssetInfo {
    * Related: packages/rspack/src/Compilation.ts
    */
   extras: Record<string, any>
+  /** whether this asset is over the size limit */
+  isOverSizeLimit?: boolean
 }
 
 export interface JsAssetInfoRelated {
@@ -336,6 +375,10 @@ export interface JsBeforeResolveArgs {
 export interface JsBuildTimeExecutionOption {
   publicPath?: string
   baseUri?: string
+}
+
+export interface JsCacheGroupTestCtx {
+  module: ModuleDTO
 }
 
 export interface JsChunk {
@@ -418,8 +461,8 @@ export interface JsDiagnostic {
 }
 
 export interface JsEntryData {
-  dependencies: Array<DependencyDto>
-  includeDependencies: Array<DependencyDto>
+  dependencies: Array<DependencyDTO>
+  includeDependencies: Array<DependencyDTO>
   options: JsEntryOptions
 }
 
@@ -646,6 +689,7 @@ export interface JsStatsAssetInfo {
   contenthash: Array<string>
   fullhash: Array<string>
   related: Array<JsStatsAssetInfoRelated>
+  isOverSizeLimit?: boolean
 }
 
 export interface JsStatsAssetInfoRelated {
@@ -656,6 +700,11 @@ export interface JsStatsAssetInfoRelated {
 export interface JsStatsAssetsByChunkName {
   name: string
   files: Array<string>
+}
+
+export interface JsStatsChildGroupChildAssets {
+  preload?: Array<string>
+  prefetch?: Array<string>
 }
 
 export interface JsStatsChunk {
@@ -688,7 +737,9 @@ export interface JsStatsChunkGroup {
   assetsSize: number
   auxiliaryAssets?: Array<JsStatsChunkGroupAsset>
   auxiliaryAssetsSize?: number
+  isOverSizeLimit?: boolean
   children?: JsStatsChunkGroupChildren
+  childAssets?: JsStatsChildGroupChildAssets
 }
 
 export interface JsStatsChunkGroupAsset {
@@ -794,6 +845,8 @@ export interface JsStatsModuleProfile {
 
 export interface JsStatsModuleReason {
   moduleDescriptor?: JsModuleDescriptor
+  resolvedModuleDescriptor?: JsModuleDescriptor
+  moduleChunks?: number
   type?: string
   userRequest?: string
 }
@@ -955,13 +1008,12 @@ export interface RawCacheGroupOptions {
   maxSize?: number | RawSplitChunkSizes
   maxAsyncSize?: number | RawSplitChunkSizes
   maxInitialSize?: number | RawSplitChunkSizes
+  maxAsyncRequests?: number
+  maxInitialRequests?: number
   name?: string | false | Function
   reuseExistingChunk?: boolean
   enforce?: boolean
-}
-
-export interface RawCacheGroupTestCtx {
-  module: JsModule
+  usedExports?: boolean
 }
 
 export interface RawCacheOptions {
@@ -1086,6 +1138,10 @@ export interface RawCssModuleParserOptions {
 
 export interface RawCssParserOptions {
   namedExports?: boolean
+}
+
+export interface RawDraft {
+  customMedia: boolean
 }
 
 export interface RawDynamicEntryPluginOptions {
@@ -1248,14 +1304,43 @@ export interface RawLazyCompilationOption {
   cacheable: boolean
 }
 
-export interface RawLightningCssMinimizerRspackPluginOptions {
+export interface RawLightningCssBrowsers {
+  android?: number
+  chrome?: number
+  edge?: number
+  firefox?: number
+  ie?: number
+  ios_saf?: number
+  opera?: number
+  safari?: number
+  samsung?: number
+}
+
+export interface RawLightningCssMinimizerOptions {
   errorRecovery: boolean
+  targets?: RawLightningCssBrowsers
+  include?: number
+  exclude?: number
+  draft?: RawDraft
+  nonStandard?: RawNonStandard
+  pseudoClasses?: RawLightningCssPseudoClasses
   unusedSymbols: Array<string>
-  removeUnusedLocalIdents: boolean
-  browserslist: Array<string>
+}
+
+export interface RawLightningCssMinimizerRspackPluginOptions {
   test?: string | RegExp | (string | RegExp)[]
   include?: string | RegExp | (string | RegExp)[]
   exclude?: string | RegExp | (string | RegExp)[]
+  removeUnusedLocalIdents: boolean
+  minimizerOptions: RawLightningCssMinimizerOptions
+}
+
+export interface RawLightningCssPseudoClasses {
+  hover?: string
+  active?: string
+  focus?: string
+  focusVisible?: string
+  focusWithin?: string
 }
 
 export interface RawLimitChunkCountPluginOptions {
@@ -1351,6 +1436,10 @@ export interface RawNodeOption {
   dirname: string
   filename: string
   global: string
+}
+
+export interface RawNonStandard {
+  deepSelectorCombinator: boolean
 }
 
 export interface RawOptimizationOptions {
@@ -1605,6 +1694,7 @@ export interface RawSplitChunksOptions {
   cacheGroups?: Array<RawCacheGroupOptions>
   /** What kind of chunks should be selected. */
   chunks?: RegExp | 'async' | 'initial' | 'all' | Function
+  usedExports?: boolean
   automaticNameDelimiter?: string
   maxAsyncRequests?: number
   maxInitialRequests?: number
@@ -1629,15 +1719,19 @@ export interface RawSwcCssMinimizerRspackPluginOptions {
   exclude?: string | RegExp | (string | RegExp)[]
 }
 
-export interface RawSwcJsMinimizerRspackPluginOptions {
-  extractComments?: RawExtractComments
+export interface RawSwcJsMinimizerOptions {
   compress: any
   mangle: any
   format: any
   module?: boolean
+}
+
+export interface RawSwcJsMinimizerRspackPluginOptions {
   test?: string | RegExp | (string | RegExp)[]
   include?: string | RegExp | (string | RegExp)[]
   exclude?: string | RegExp | (string | RegExp)[]
+  extractComments?: RawExtractComments
+  minimizerOptions: RawSwcJsMinimizerOptions
 }
 
 export interface RawToOptions {
@@ -1682,16 +1776,17 @@ export enum RegisterJsTapKind {
   CompilationChunkAsset = 20,
   CompilationProcessAssets = 21,
   CompilationAfterProcessAssets = 22,
-  CompilationAfterSeal = 23,
-  NormalModuleFactoryBeforeResolve = 24,
-  NormalModuleFactoryFactorize = 25,
-  NormalModuleFactoryResolve = 26,
-  NormalModuleFactoryAfterResolve = 27,
-  NormalModuleFactoryCreateModule = 28,
-  NormalModuleFactoryResolveForScheme = 29,
-  ContextModuleFactoryBeforeResolve = 30,
-  ContextModuleFactoryAfterResolve = 31,
-  JavascriptModulesChunkHash = 32
+  CompilationSeal = 23,
+  CompilationAfterSeal = 24,
+  NormalModuleFactoryBeforeResolve = 25,
+  NormalModuleFactoryFactorize = 26,
+  NormalModuleFactoryResolve = 27,
+  NormalModuleFactoryAfterResolve = 28,
+  NormalModuleFactoryCreateModule = 29,
+  NormalModuleFactoryResolveForScheme = 30,
+  ContextModuleFactoryBeforeResolve = 31,
+  ContextModuleFactoryAfterResolve = 32,
+  JavascriptModulesChunkHash = 33
 }
 
 export interface RegisterJsTaps {
@@ -1718,6 +1813,7 @@ export interface RegisterJsTaps {
   registerCompilationChunkAssetTaps: (stages: Array<number>) => Array<{ function: ((arg: JsChunkAssetArgs) => void); stage: number; }>
   registerCompilationProcessAssetsTaps: (stages: Array<number>) => Array<{ function: ((arg: JsCompilation) => Promise<void>); stage: number; }>
   registerCompilationAfterProcessAssetsTaps: (stages: Array<number>) => Array<{ function: ((arg: JsCompilation) => void); stage: number; }>
+  registerCompilationSealTaps: (stages: Array<number>) => Array<{ function: (() => void); stage: number; }>
   registerCompilationAfterSealTaps: (stages: Array<number>) => Array<{ function: (() => Promise<void>); stage: number; }>
   registerNormalModuleFactoryBeforeResolveTaps: (stages: Array<number>) => Array<{ function: ((arg: JsBeforeResolveArgs) => Promise<[boolean | undefined, JsBeforeResolveArgs]>); stage: number; }>
   registerNormalModuleFactoryFactorizeTaps: (stages: Array<number>) => Array<{ function: ((arg: JsFactorizeArgs) => Promise<JsFactorizeArgs>); stage: number; }>

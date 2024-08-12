@@ -40,12 +40,10 @@ function getCurrentScriptUrl(moduleId) {
         if (!src) {
             return null;
         }
-        const splitResult = src.split(/([^\\/]+)\.js$/);
-        const filename = splitResult?.[1];
-        if (!filename) {
-            return [src.replace(".js", ".css")];
-        }
-        if (!fileMap) {
+        const splitResult = src.match(/([^\\/]+)\.js$/);
+        // biome-ignore lint/complexity/useOptionalChain: not use optionalChain to support legacy browser
+        const filename = splitResult && splitResult[1];
+        if (!filename || !fileMap) {
             return [src.replace(".js", ".css")];
         }
         return fileMap.split(",").map(mapRule => {
@@ -55,13 +53,17 @@ function getCurrentScriptUrl(moduleId) {
     };
 }
 function updateCss(el, url) {
+    let normalizedUrl;
     if (!url) {
         if (!el.href) {
             return;
         }
-        url = el.href.split("?")[0];
+        normalizedUrl = el.href.split("?")[0];
     }
-    if (!isUrlRequest(url)) {
+    else {
+        normalizedUrl = url;
+    }
+    if (!isUrlRequest(normalizedUrl)) {
         return;
     }
     if (el.isLoaded === false) {
@@ -69,7 +71,7 @@ function updateCss(el, url) {
         // We're probably changing the same file more than once.
         return;
     }
-    if (!url || !(url.indexOf(".css") > -1)) {
+    if (!normalizedUrl || !(normalizedUrl.indexOf(".css") > -1)) {
         return;
     }
     el.visited = true;
@@ -80,28 +82,36 @@ function updateCss(el, url) {
             return;
         }
         newEl.isLoaded = true;
-        el.parentNode?.removeChild(el);
+        if (el.parentNode) {
+            el.parentNode.removeChild(el);
+        }
     });
     newEl.addEventListener("error", () => {
         if (newEl.isLoaded) {
             return;
         }
         newEl.isLoaded = true;
-        el.parentNode?.removeChild(el);
+        if (el.parentNode) {
+            el.parentNode.removeChild(el);
+        }
     });
-    newEl.href = `${url}?${Date.now()}`;
+    newEl.href = `${normalizedUrl}?${Date.now()}`;
+    const parent = el.parentNode;
+    if (!parent) {
+        return;
+    }
     if (el.nextSibling) {
-        el.parentNode?.insertBefore(newEl, el.nextSibling);
+        parent.insertBefore(newEl, el.nextSibling);
     }
     else {
-        el.parentNode?.appendChild(newEl);
+        parent.appendChild(newEl);
     }
 }
 function getReloadUrl(href, src) {
     let ret = "";
-    href = (0, normalizeUrl_1.normalizeUrl)(href);
+    const normalizedHref = (0, normalizeUrl_1.normalizeUrl)(href);
     src.some(url => {
-        if (href.indexOf(src) > -1) {
+        if (normalizedHref.indexOf(src) > -1) {
             ret = url;
         }
     });
@@ -163,7 +173,8 @@ function cssReload(moduleId, options) {
             return;
         }
         if (reloaded) {
-            console.log("[HMR] css reload %s", src?.join(" "));
+            // biome-ignore lint/complexity/useOptionalChain: not use optionalChain to support legacy browser
+            console.log("[HMR] css reload %s", src && src.join(" "));
         }
         else {
             console.log("[HMR] Reload all css");
@@ -180,8 +191,8 @@ exports.cssReload = cssReload;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.normalizeUrl = void 0;
-function normalizeUrl(urlString) {
-    urlString = urlString.trim();
+function normalizeUrl(url) {
+    const urlString = url.trim();
     if (/^data:/i.test(urlString)) {
         return urlString;
     }

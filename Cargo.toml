@@ -4,6 +4,15 @@ cargo-features = ["trim-paths"]
 members  = ["crates/*"]
 resolver = "2"          # See https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
 
+[workspace.package]
+authors       = ["Rspack Teams"]
+categories    = ["bundler", "development-tools", "web-programming"]
+documentation = "https://rspack.dev/"
+homepage      = "https://rspack.dev/"
+license       = "MIT"
+repository    = "https://github.com/web-infra-dev/rspack"
+
+
 [workspace.dependencies]
 anyhow             = { version = "1.0.81", features = ["backtrace"] }
 anymap             = { version = "=1.0.0-beta.2" }
@@ -24,7 +33,7 @@ indexmap           = { version = "2.2.6" }
 indoc              = { version = "2.0.5" }
 itertools          = { version = "0.13.0" }
 json               = { version = "0.12.4" }
-lightningcss       = { version = "1.0.0-alpha.57" }
+lightningcss       = { version = "1.0.0-alpha.58" }
 linked_hash_set    = { version = "0.1.4" }
 mimalloc           = { version = "0.1.43" }
 mime_guess         = { version = "2.0.4" }
@@ -37,7 +46,7 @@ proc-macro2        = { version = "1.0.79" }
 quote              = { version = "1.0.35" }
 rayon              = { version = "1.10.0" }
 regex              = { version = "1.10.4" }
-rspack_sources     = { version = "=0.2.15" }
+rspack_sources     = { version = "=0.2.17" }
 rustc-hash         = { version = "1.1.0" }
 schemars           = { version = "0.8.16" }
 serde              = { version = "1.0.197" }
@@ -69,6 +78,9 @@ swc_html            = { version = "=0.145.0" }
 swc_html_minifier   = { version = "=0.142.2" }
 swc_node_comments   = { version = "=0.23.0" }
 
+
+[workspace.metadata.release]
+rate-limit = { existing-packages = 70, new-packages = 70 }
 [profile.dev]
 codegen-units = 16
 debug         = 2    # debug build will cause runtime panic if codegen-unints is default

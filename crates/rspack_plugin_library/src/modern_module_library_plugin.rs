@@ -75,12 +75,17 @@ impl ModernModuleLibraryPlugin {
       .iter()
       .filter(|id| !concatenated_module_ids.contains(id))
       .filter(|id| {
-        let module = module_graph
-          .module_by_identifier(id)
+        let mgm = module_graph
+          .module_graph_module_by_identifier(id)
           .expect("should have module");
-        module
-          .get_concatenation_bailout_reason(&module_graph, &compilation.chunk_graph)
-          .is_none()
+        let reasons = &mgm.optimization_bailout;
+        reasons
+          .iter()
+          // We did want force concatenate entry point here.
+          // TODO: use constant variable to identify the reason.
+          .filter(|r| !r.contains("Module is an entry point"))
+          .collect::<Vec<_>>()
+          .is_empty()
       })
       .collect::<HashSet<_>>();
 
@@ -146,9 +151,12 @@ fn render_startup(
 
       let final_name = exports_final_names.get(used_name.as_str());
 
+      let contains_char =
+        |string: &str, chars: &str| -> bool { string.chars().any(|c| chars.contains(c)) };
+
       if let Some(final_name) = final_name {
         // Currently, there's not way to determine if a final_name contains a property access.
-        if final_name.contains('.') || final_name.contains("()") {
+        if contains_char(final_name, "[]().") {
           exports_with_property_access.push((final_name, info_name));
         } else if info_name == final_name {
           exports.push(info_name.to_string());
