@@ -409,6 +409,10 @@ impl JsModule {
   }
 }
 
+thread_local! {
+  static JS_MODULE_INSTANCE_REFS: RefCell<HashMap<String, Ref>> = Default::default();
+}
+
 pub struct JsModuleWrapper(Either<JsModule, Ref>);
 
 impl JsModuleWrapper {
@@ -419,12 +423,23 @@ impl JsModuleWrapper {
 
 impl ToNapiValue for JsModuleWrapper {
   unsafe fn to_napi_value(env: sys::napi_env, val: Self) -> Result<sys::napi_value> {
-    let env_wrapper = Env::from(env);
     match val.0 {
-      Either::A(tpl) => {
-        let instance = tpl.into_instance(env_wrapper)?;
-        ToNapiValue::to_napi_value(env, instance)
-      }
+      Either::A(tpl) => JS_MODULE_INSTANCE_REFS.with(|ref_cell| {
+        let mut refs = ref_cell.borrow_mut();
+        match refs.entry(tpl.module_identifier.to_string()) {
+          std::collections::hash_map::Entry::Occupied(entry) => {
+            let r = entry.get();
+            ToNapiValue::to_napi_value(env, r)
+          }
+          std::collections::hash_map::Entry::Vacant(entry) => {
+            let instance = tpl.into_instance(Env::from_raw(env))?;
+            let napi_value = ToNapiValue::to_napi_value(env, instance)?;
+            let r = Ref::new(env, napi_value, 1)?;
+            let r = entry.insert(r);
+            ToNapiValue::to_napi_value(env, r)
+          }
+        }
+      }),
       Either::B(r) => ToNapiValue::to_napi_value(env, r),
     }
   }
