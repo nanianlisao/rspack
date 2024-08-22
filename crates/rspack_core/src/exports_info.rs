@@ -17,6 +17,7 @@ use rustc_hash::FxHashSet as HashSet;
 use serde::Serialize;
 
 use crate::Compilation;
+use crate::RuntimeStr;
 use crate::{
   property_access, ConnectionState, DependencyCondition, DependencyId, ModuleGraph,
   ModuleIdentifier, Nullable, RuntimeSpec,
@@ -938,7 +939,7 @@ impl ExportInfo {
       let mut max = UsageState::Unused;
       if let Some(runtime) = runtime {
         for item in runtime.iter() {
-          let Some(usage) = used_in_runtime.get(item.as_ref()) else {
+          let Some(usage) = used_in_runtime.get(item) else {
             continue;
           };
           match usage {
@@ -982,7 +983,7 @@ impl ExportInfo {
         if let Some(runtime) = runtime {
           if runtime
             .iter()
-            .all(|item| !used_in_runtime.contains_key(item.as_ref()))
+            .all(|item| !used_in_runtime.contains_key(item))
           {
             return None;
           }
@@ -1253,7 +1254,7 @@ impl ExportInfo {
         .get_or_insert(HashMap::default());
       let mut changed = false;
       for k in runtime.iter() {
-        match used_in_runtime.entry(k.clone()) {
+        match used_in_runtime.entry(RuntimeStr::new(k)) {
           Entry::Occupied(mut occ) => match (&new_value, occ.get()) {
             (new, _) if new == &UsageState::Unused => {
               occ.remove();
@@ -1346,7 +1347,7 @@ impl ExportInfo {
       let mut changed = false;
 
       for k in runtime.iter() {
-        match used_in_runtime.entry(k.clone()) {
+        match used_in_runtime.entry(RuntimeStr::new(k)) {
           Entry::Occupied(mut occ) => match (&new_value, occ.get()) {
             (new, old) if condition(old) && new == &UsageState::Unused => {
               occ.remove();
@@ -1560,7 +1561,7 @@ pub struct ExportInfoData {
   has_use_in_runtime_info: bool,
   can_mangle_use: Option<bool>,
   global_used: Option<UsageState>,
-  used_in_runtime: Option<HashMap<Arc<str>, UsageState>>,
+  used_in_runtime: Option<HashMap<RuntimeStr, UsageState>>,
 }
 
 #[derive(Debug, Hash, Clone, Copy)]
