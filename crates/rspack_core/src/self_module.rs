@@ -15,6 +15,7 @@ use crate::{
 };
 
 #[impl_source_map_config]
+#[rspack_cacheable::cacheable]
 #[derive(Debug)]
 pub struct SelfModule {
   identifier: ModuleIdentifier,
@@ -66,6 +67,7 @@ impl DependenciesBlock for SelfModule {
   }
 }
 
+#[rspack_cacheable::cacheable_dyn(crate::cache::CacheContext)]
 #[async_trait]
 impl Module for SelfModule {
   impl_module_meta_info!();

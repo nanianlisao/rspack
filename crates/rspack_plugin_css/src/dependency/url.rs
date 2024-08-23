@@ -1,3 +1,4 @@
+use rspack_cacheable::{cacheable, cacheable_dyn};
 use rspack_core::{
   AsContextDependency, CodeGenerationDataFilename, CodeGenerationDataUrl, Compilation, Dependency,
   DependencyCategory, DependencyId, DependencyTemplate, DependencyType, ErrorSpan,
@@ -7,6 +8,7 @@ use rspack_core::{
 
 use crate::utils::{css_escape_string, AUTO_PUBLIC_PATH_PLACEHOLDER};
 
+#[cacheable]
 #[derive(Debug, Clone)]
 pub struct CssUrlDependency {
   id: DependencyId,
@@ -61,6 +63,7 @@ impl CssUrlDependency {
   }
 }
 
+#[cacheable_dyn]
 impl Dependency for CssUrlDependency {
   fn id(&self) -> &DependencyId {
     &self.id
@@ -79,6 +82,7 @@ impl Dependency for CssUrlDependency {
   }
 }
 
+#[cacheable_dyn]
 impl ModuleDependency for CssUrlDependency {
   fn request(&self) -> &str {
     &self.request
@@ -93,6 +97,7 @@ impl ModuleDependency for CssUrlDependency {
   }
 }
 
+#[cacheable_dyn]
 impl DependencyTemplate for CssUrlDependency {
   fn apply(
     &self,

@@ -1,6 +1,6 @@
 mod compilation;
 mod hmr;
-mod make;
+pub mod make;
 mod module_executor;
 
 use std::sync::Arc;
@@ -17,6 +17,7 @@ use tracing::instrument;
 pub use self::compilation::*;
 pub use self::hmr::{collect_changed_modules, CompilationRecords};
 pub use self::module_executor::{ExecuteModuleId, ExecutedRuntimeModule, ModuleExecutor};
+use crate::cache::{Cache, SnapshotOption};
 use crate::old_cache::Cache as OldCache;
 use crate::{
   fast_set, BoxPlugin, CompilerOptions, Logger, PluginDriver, ResolverFactory, SharedPluginDriver,
@@ -60,6 +61,7 @@ where
   pub resolver_factory: Arc<ResolverFactory>,
   pub loader_resolver_factory: Arc<ResolverFactory>,
   pub old_cache: Arc<OldCache>,
+  pub cache: Arc<Cache>,
   /// emitted asset versions
   /// the key of HashMap is filename, the value of HashMap is version
   pub emitted_asset_versions: HashMap<String, String>,
@@ -90,6 +92,7 @@ where
       .unwrap_or_else(|| Arc::new(ResolverFactory::new(options.resolve_loader.clone())));
     let (plugin_driver, options) = PluginDriver::new(options, plugins, resolver_factory.clone());
     let old_cache = Arc::new(OldCache::new(options.clone()));
+    let cache = Arc::new(Cache::new(options.clone()));
     let module_executor = ModuleExecutor::default();
     Self {
       options: options.clone(),
@@ -100,6 +103,7 @@ where
         loader_resolver_factory.clone(),
         None,
         old_cache.clone(),
+        cache.clone(),
         Some(module_executor),
         Default::default(),
         Default::default(),
@@ -109,6 +113,7 @@ where
       resolver_factory,
       loader_resolver_factory,
       old_cache,
+      cache,
       emitted_asset_versions: Default::default(),
     }
   }
@@ -124,8 +129,16 @@ where
     // TODO: clear the outdated cache entries in resolver,
     // TODO: maybe it's better to use external entries.
     self.plugin_driver.resolver_factory.clear_cache();
-
     let module_executor = ModuleExecutor::default();
+    // if enable presistent cache
+    let (mut make_artifact, modified_file, removed_file) = {
+      let (m, d) = self.cache.snapshot.calc_modified_files();
+      let make_artifact = match self.cache.make_occasion.recovery() {
+        Ok(i) => i,
+        Err(_) => Default::default(),
+      };
+      (make_artifact, m, d)
+    };
     fast_set(
       &mut self.compilation,
       Compilation::new(
@@ -135,14 +148,17 @@ where
         self.loader_resolver_factory.clone(),
         None,
         self.old_cache.clone(),
+        self.cache.clone(),
         Some(module_executor),
-        Default::default(),
-        Default::default(),
+        modified_file,
+        removed_file,
       ),
     );
+    self.compilation.swap_make_artifact(&mut make_artifact);
 
     self.compile().await?;
     self.old_cache.begin_idle();
+    self.cache.idle();
     self.compile_done().await?;
     Ok(())
   }
