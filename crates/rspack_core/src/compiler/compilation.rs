@@ -28,6 +28,7 @@ use super::{
 };
 use crate::{
   build_chunk_graph::build_chunk_graph,
+  cache::Cache,
   get_chunk_from_ukey, get_mut_chunk_from_ukey, is_source_equal,
   old_cache::{use_code_splitting_cache, Cache as OldCache, CodeSplittingCache},
   to_identifier, BoxDependency, BoxModule, CacheCount, CacheOptions, Chunk, ChunkByUkey,
@@ -181,6 +182,7 @@ pub struct Compilation {
 
   pub modified_files: HashSet<PathBuf>,
   pub removed_files: HashSet<PathBuf>,
+  cache: Arc<Cache>,
   make_artifact: MakeArtifact,
 }
 
@@ -213,6 +215,7 @@ impl Compilation {
     loader_resolver_factory: Arc<ResolverFactory>,
     records: Option<CompilationRecords>,
     old_cache: Arc<OldCache>,
+    cache: Arc<Cache>,
     module_executor: Option<ModuleExecutor>,
     modified_files: HashSet<PathBuf>,
     removed_files: HashSet<PathBuf>,
@@ -249,6 +252,7 @@ impl Compilation {
       code_generated_modules: Default::default(),
       build_time_executed_modules: Default::default(),
       old_cache,
+      cache,
       code_splitting_cache: Default::default(),
       hash: None,
       used_chunk_ids: Default::default(),
@@ -1067,6 +1071,20 @@ impl Compilation {
       module_executor.hook_after_finish_modules(self).await;
       self.module_executor = Some(module_executor);
     }
+
+    // save make artifact
+    self.cache.make_occasion.save(&self.make_artifact);
+    // save snapshot
+    self.cache.snapshot.add(self.modified_files.iter());
+    self.cache.snapshot.remove(self.removed_files.iter());
+    self
+      .cache
+      .snapshot
+      .add(self.make_artifact.added_dependencies());
+    self
+      .cache
+      .snapshot
+      .remove(self.make_artifact.removed_dependencies());
 
     // take built_modules
     self

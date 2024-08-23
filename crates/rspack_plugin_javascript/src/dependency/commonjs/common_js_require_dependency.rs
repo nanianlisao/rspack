@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use rspack_cacheable::{cacheable, cacheable_dyn};
 use rspack_core::{module_id, Compilation, RuntimeSpec};
 use rspack_core::{AsContextDependency, Dependency, DependencyCategory, DependencyLocation};
 use rspack_core::{DependencyId, DependencyTemplate};
@@ -7,6 +8,7 @@ use rspack_core::{DependencyType, ErrorSpan, ModuleDependency};
 use rspack_core::{TemplateContext, TemplateReplaceSource};
 use swc_core::common::SourceMap;
 
+#[cacheable]
 #[derive(Debug, Clone)]
 pub struct CommonJsRequireDependency {
   id: DependencyId,
@@ -36,6 +38,7 @@ impl CommonJsRequireDependency {
   }
 }
 
+#[cacheable_dyn]
 impl Dependency for CommonJsRequireDependency {
   fn id(&self) -> &DependencyId {
     &self.id
@@ -54,6 +57,7 @@ impl Dependency for CommonJsRequireDependency {
   }
 }
 
+#[cacheable_dyn]
 impl ModuleDependency for CommonJsRequireDependency {
   fn request(&self) -> &str {
     &self.request
@@ -72,6 +76,7 @@ impl ModuleDependency for CommonJsRequireDependency {
   }
 }
 
+#[cacheable_dyn]
 impl DependencyTemplate for CommonJsRequireDependency {
   fn apply(
     &self,

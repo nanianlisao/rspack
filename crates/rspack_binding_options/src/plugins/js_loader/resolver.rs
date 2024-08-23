@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use rspack_cacheable::{cacheable, cacheable_dyn};
 use rspack_collections::{Identifiable, Identifier};
 use rspack_core::{
   BoxLoader, Context, Loader, ModuleRuleUseLoader, NormalModuleFactoryResolveLoader, ResolveResult,
@@ -15,9 +16,11 @@ use rspack_paths::Utf8Path;
 
 use super::{JsLoaderRspackPlugin, JsLoaderRspackPluginInner};
 
+#[cacheable]
 #[derive(Debug)]
 pub struct JsLoader(pub Identifier);
 
+#[cacheable_dyn]
 impl Loader<RunnerContext> for JsLoader {}
 
 impl Identifiable for JsLoader {
@@ -28,14 +31,8 @@ impl Identifiable for JsLoader {
 
 pub fn get_builtin_loader(builtin: &str, options: Option<&str>) -> BoxLoader {
   if builtin.starts_with(SWC_LOADER_IDENTIFIER) {
-    return Arc::new(
-      rspack_loader_swc::SwcLoader::new(
-        serde_json::from_str(options.unwrap_or("{}")).unwrap_or_else(|e| {
-          panic!("Could not parse builtin:swc-loader options:{options:?},error: {e:?}")
-        }),
-      )
-      .with_identifier(builtin.into()),
-    );
+    let json_str = options.unwrap_or("{}");
+    return Arc::new(rspack_loader_swc::SwcLoader::new(json_str).with_identifier(builtin.into()));
   }
 
   if builtin.starts_with(LIGHTNINGCSS_LOADER_IDENTIFIER) {

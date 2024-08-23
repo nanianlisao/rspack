@@ -3,6 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use indexmap::IndexMap;
+use rspack_cacheable::{cacheable, cacheable_dyn, with::Skip};
 use rspack_collections::Identifier;
 use rspack_core::rspack_sources::{BoxSource, RawSource, Source, SourceExt};
 use rspack_core::DependencyType::WasmImport;
@@ -20,13 +21,17 @@ use wasmparser::{Import, Parser, Payload};
 use crate::dependency::WasmImportDependency;
 use crate::ModuleIdToFileName;
 
+#[cacheable]
 #[derive(Debug)]
 pub struct AsyncWasmParserAndGenerator {
+  // TODO fix it
+  #[with(Skip)]
   pub(crate) module_id_to_filename: ModuleIdToFileName,
 }
 
 pub(crate) static WASM_SOURCE_TYPE: &[SourceType; 2] = &[SourceType::Wasm, SourceType::JavaScript];
 
+#[cacheable_dyn]
 impl ParserAndGenerator for AsyncWasmParserAndGenerator {
   fn source_types(&self) -> &[SourceType] {
     WASM_SOURCE_TYPE
@@ -60,11 +65,10 @@ impl ParserAndGenerator for AsyncWasmParserAndGenerator {
           Payload::ImportSection(s) => {
             for import in s {
               match import {
-                Ok(Import { module, name, ty }) => {
+                Ok(Import { module, name, .. }) => {
                   dependencies.push(Box::new(WasmImportDependency::new(
                     module.into(),
                     name.into(),
-                    ty,
                   )));
                 }
                 Err(err) => diagnostic.push(Diagnostic::error(

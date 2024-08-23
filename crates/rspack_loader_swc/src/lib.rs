@@ -9,6 +9,7 @@ use std::default::Default;
 use compiler::{IntoJsAst, SwcCompiler};
 use options::SwcCompilerOptionsWithAdditional;
 pub use options::SwcLoaderJsOptions;
+use rspack_cacheable::{cacheable, cacheable_dyn};
 use rspack_core::{rspack_sources::SourceMap, Mode, RunnerContext};
 use rspack_error::{error, AnyhowError, Diagnostic, Result};
 use rspack_loader_runner::{Identifiable, Identifier, Loader, LoaderContext};
@@ -21,6 +22,7 @@ use swc_core::base::config::{InputSourceMap, OutputCharset, TransformConfig};
 use swc_core::ecma::visit::VisitWith;
 use transformer::IdentCollector;
 
+#[cacheable]
 #[derive(Debug)]
 pub struct SwcLoader {
   identifier: Identifier,
@@ -28,10 +30,10 @@ pub struct SwcLoader {
 }
 
 impl SwcLoader {
-  pub fn new(options: SwcLoaderJsOptions) -> Self {
+  pub fn new(json_str: &str) -> Self {
     Self {
       identifier: SWC_LOADER_IDENTIFIER.into(),
-      options_with_additional: options.into(),
+      options_with_additional: SwcCompilerOptionsWithAdditional::new(json_str),
     }
   }
 
@@ -146,6 +148,7 @@ impl SwcLoader {
 
 pub const SWC_LOADER_IDENTIFIER: &str = "builtin:swc-loader";
 
+#[cacheable_dyn]
 #[async_trait::async_trait]
 impl Loader<RunnerContext> for SwcLoader {
   async fn run(&self, loader_context: &mut LoaderContext<RunnerContext>) -> Result<()> {

@@ -1,12 +1,15 @@
 use std::{fmt, sync::Arc};
 
 use derivative::Derivative;
+use rspack_cacheable::{cacheable, with::Skip};
 
+#[cacheable]
 #[derive(Derivative)]
 #[derivative(Debug, Clone)]
 pub struct RealDependencyLocation {
   pub end: u32,
   pub start: u32,
+  #[with(Skip)]
   #[derivative(Debug = "ignore")]
   source: Option<Arc<dyn SourceLocation>>,
 }

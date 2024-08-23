@@ -1,3 +1,4 @@
+use rspack_cacheable::{cacheable, cacheable_dyn};
 use rspack_core::{AsModuleDependency, Compilation, ContextDependency, RuntimeSpec};
 use rspack_core::{ContextOptions, Dependency, TemplateReplaceSource};
 use rspack_core::{DependencyCategory, DependencyId, DependencyTemplate};
@@ -7,6 +8,7 @@ use super::{
   context_dependency_template_as_require_call, create_resource_identifier_for_context_dependency,
 };
 
+#[cacheable]
 #[derive(Debug, Clone)]
 pub struct CommonJsRequireContextDependency {
   callee_start: u32,
@@ -42,6 +44,7 @@ impl CommonJsRequireContextDependency {
   }
 }
 
+#[cacheable_dyn]
 impl Dependency for CommonJsRequireContextDependency {
   fn id(&self) -> &DependencyId {
     &self.id
@@ -90,6 +93,7 @@ impl ContextDependency for CommonJsRequireContextDependency {
   }
 }
 
+#[cacheable_dyn]
 impl DependencyTemplate for CommonJsRequireContextDependency {
   fn apply(
     &self,

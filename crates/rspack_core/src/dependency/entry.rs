@@ -1,8 +1,11 @@
+use rspack_cacheable::{cacheable, cacheable_dyn};
+
 use crate::{
   AsContextDependency, AsDependencyTemplate, Context, Dependency, DependencyCategory, DependencyId,
   DependencyType, ModuleDependency, ModuleLayer,
 };
 
+#[cacheable]
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct EntryDependency {
   id: DependencyId,
@@ -33,6 +36,7 @@ impl EntryDependency {
   }
 }
 
+#[cacheable_dyn]
 impl Dependency for EntryDependency {
   fn id(&self) -> &DependencyId {
     &self.id
@@ -55,6 +59,7 @@ impl Dependency for EntryDependency {
   }
 }
 
+#[cacheable_dyn]
 impl ModuleDependency for EntryDependency {
   fn request(&self) -> &str {
     &self.request

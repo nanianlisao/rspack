@@ -4,7 +4,9 @@ use rkyv::{
   vec::{ArchivedVec, VecResolver},
   with::{ArchiveWith, DeserializeWith, SerializeWith},
 };
-use rspack_sources::{OriginalSource, RawSource, Source};
+use rspack_sources::{
+  OriginalSource, RawSource, Source, SourceMap, SourceMapSource, SourceMapSourceOptions,
+};
 
 use super::AsPreset;
 use crate::{
@@ -139,6 +141,7 @@ impl ArchiveWith<Arc<dyn Source>> for AsPreset {
   }
 }
 
+// TODO add cacheable to rspack-sources
 impl SerializeWith<Arc<dyn Source>, CacheableSerializer> for AsPreset {
   #[inline]
   fn serialize_with(
@@ -163,14 +166,22 @@ impl SerializeWith<Arc<dyn Source>, CacheableSerializer> for AsPreset {
         },
       };
       bytes = crate::to_bytes(&data, context)?;
-    }
-    if let Some(original_source) = inner.downcast_ref::<OriginalSource>() {
+    } else if let Some(original_source) = inner.downcast_ref::<OriginalSource>() {
       let source = original_source.source();
       let data = Some(TypeWrapperRef {
         type_name: "OriginalSource",
         bytes: source.as_bytes(),
       });
       bytes = crate::to_bytes(&data, context)?;
+    } else if let Some(source_map_source) = inner.downcast_ref::<SourceMapSource>() {
+      let source = source_map_source.source();
+      let data = Some(TypeWrapperRef {
+        type_name: "SourceMapSource",
+        bytes: source.as_bytes(),
+      });
+      bytes = crate::to_bytes(&data, context)?;
+    } else {
+      return Err(SerializeError::SerializeFailed("unsupport rspack source"));
     }
     Ok(SourceResolver {
       inner: ArchivedVec::serialize_from_slice(&bytes, serializer)?,
@@ -198,6 +209,14 @@ impl DeserializeWith<ArchivedVec<u8>, Arc<dyn Source>, CacheableDeserializer> fo
         "a",
         String::from_utf8(bytes).expect("unexpect bytes"),
       ))),
+      "SourceMapSource" => Ok(Arc::new(SourceMapSource::new(SourceMapSourceOptions {
+        value: String::from_utf8(bytes).expect("unexpect bytes"),
+        name: String::from("a"),
+        source_map: SourceMap::default(),
+        original_source: None,
+        inner_source_map: None,
+        remove_original_source: true,
+      }))),
       _ => Err(DeserializeError::DeserializeFailed(
         "unsupported box source",
       )),

@@ -1,3 +1,4 @@
+use rspack_cacheable::{cacheable, cacheable_dyn, with::Skip};
 use rspack_core::{
   AsDependency, Compilation, DependencyTemplate, ErrorSpan, RuntimeGlobals, RuntimeSpec,
   TemplateContext, TemplateReplaceSource,
@@ -5,8 +6,11 @@ use rspack_core::{
 use rspack_error::ErrorLocation;
 use rspack_util::ext::DynHash;
 
+#[cacheable]
 #[derive(Debug, Clone)]
 pub struct ModuleArgumentDependency {
+  // TODO
+  #[with(Skip)]
   id: Option<&'static str>,
   loc: ErrorLocation,
   span: ErrorSpan,
@@ -22,6 +26,7 @@ impl ModuleArgumentDependency {
   }
 }
 
+#[cacheable_dyn]
 impl DependencyTemplate for ModuleArgumentDependency {
   fn apply(
     &self,
