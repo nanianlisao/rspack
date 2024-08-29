@@ -189,7 +189,7 @@ pub struct Compilation {
 
   pub modified_files: HashSet<PathBuf>,
   pub removed_files: HashSet<PathBuf>,
-  make_artifact: MakeArtifact,
+  pub make_artifact: MakeArtifact,
 }
 
 impl Compilation {
@@ -1134,37 +1134,34 @@ impl Compilation {
     ) {}
     logger.time_end(start);
 
-    // if self.options.is_new_tree_shaking() {
-    //   // let filter = |item: &str| ["config-provider"].iter().any(|pat| item.contains(pat));
-    //   // debug_all_exports_info!(&self.module_graph, filter);
-    // }
     let start = logger.time("create chunks");
     use_code_splitting_cache(self, |compilation| async {
       build_chunk_graph(compilation)?;
-      while matches!(
-        plugin_driver
-          .compilation_hooks
-          .optimize_modules
-          .call(compilation)
-          .await?,
-        Some(true)
-      ) {}
-      plugin_driver
-        .compilation_hooks
-        .after_optimize_modules
-        .call(compilation)
-        .await?;
-      while matches!(
-        plugin_driver
-          .compilation_hooks
-          .optimize_chunks
-          .call(compilation)?,
-        Some(true)
-      ) {}
       Ok(compilation)
     })
     .await?;
+
+    while matches!(
+      plugin_driver
+        .compilation_hooks
+        .optimize_modules
+        .call(self)
+        .await?,
+      Some(true)
+    ) {}
+    plugin_driver
+      .compilation_hooks
+      .after_optimize_modules
+      .call(self)
+      .await?;
+    while matches!(
+      plugin_driver.compilation_hooks.optimize_chunks.call(self)?,
+      Some(true)
+    ) {}
+
     logger.time_end(start);
+
+    dbg!("created chunks");
 
     let start = logger.time("optimize");
     plugin_driver
@@ -1172,24 +1169,28 @@ impl Compilation {
       .optimize_tree
       .call(self)
       .await?;
+    dbg!("optimized tree");
 
     plugin_driver
       .compilation_hooks
       .optimize_chunk_modules
       .call(self)
       .await?;
-
+    dbg!("optimized chunk modules");
     logger.time_end(start);
 
     let start = logger.time("module ids");
     plugin_driver.compilation_hooks.module_ids.call(self)?;
     logger.time_end(start);
+    dbg!("module ids");
 
     let start = logger.time("chunk ids");
     plugin_driver.compilation_hooks.chunk_ids.call(self)?;
     logger.time_end(start);
+    dbg!("chunk ids");
 
     self.assign_runtime_ids();
+    dbg!("runtime ids");
 
     if self.options.new_incremental_enabled() {
       self
@@ -1217,6 +1218,8 @@ impl Compilation {
 
     let start = logger.time("code generation");
     self.code_generation()?;
+    dbg!("codegen");
+
     logger.time_end(start);
 
     let start = logger.time("runtime requirements");
