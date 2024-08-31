@@ -40,6 +40,7 @@ rspack_paths = { version = "0.1.0", path = "../rspack_paths" }
 rspack_regex = { version = "0.1.0", path = "../rspack_regex" }
 rspack_resolver = { version = "0.3.1", features = [
   "package_json_raw_json_api",
+  "yarn_pnp",
 ], git = "https://github.com/web-infra-dev/rspack-resolver", rev = "ee970d59977e892226cd5255b0826d151e75af66" }
 rspack_sources = { workspace = true }
 rspack_util = { version = "0.1.0", path = "../rspack_util" }
